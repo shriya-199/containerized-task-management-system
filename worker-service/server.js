@@ -3,8 +3,7 @@ const helmet = require('helmet');
 const dotenv = require('dotenv');
 const {
   ensureWorkerTables,
-  getPendingTasks,
-  markTaskCompleted,
+  getOpenTasks,
   recordJobRun
 } = require('./models/jobModel');
 
@@ -39,7 +38,35 @@ app.use((error, _req, res, _next) => {
   });
 });
 
-async function processPendingTasks() {
+function formatDueDate(value) {
+  if (!value) {
+    return '';
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString().slice(0, 10);
+  }
+
+  const rawValue = String(value);
+  if (/^\d{4}-\d{2}-\d{2}/.test(rawValue)) {
+    return rawValue.slice(0, 10);
+  }
+
+  const parsedDate = new Date(rawValue);
+  return Number.isNaN(parsedDate.getTime()) ? rawValue : parsedDate.toISOString().slice(0, 10);
+}
+
+function isOverdue(task) {
+  if (!task.dueDate) {
+    return false;
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const dueDate = formatDueDate(task.dueDate);
+  return dueDate < today;
+}
+
+async function monitorOpenTasks() {
   if (isProcessing) {
     console.log('[worker-service] previous job is still running; skipping this cycle');
     return;
@@ -49,33 +76,36 @@ async function processPendingTasks() {
   const startedAt = new Date();
 
   try {
-    console.log(`[worker-service] polling for pending tasks at ${startedAt.toISOString()}`);
-    const pendingTasks = await getPendingTasks();
+    console.log(`[worker-service] checking open daily tasks at ${startedAt.toISOString()}`);
+    const openTasks = await getOpenTasks();
 
-    if (pendingTasks.length === 0) {
-      console.log('[worker-service] no pending tasks found');
-      await recordJobRun('process-pending-tasks', 'completed', {
-        processedCount: 0,
-        message: 'No pending tasks found'
+    if (openTasks.length === 0) {
+      console.log('[worker-service] no open tasks found');
+      await recordJobRun('monitor-open-tasks', 'completed', {
+        openTaskCount: 0,
+        overdueTaskCount: 0,
+        message: 'No open tasks found'
       });
       return;
     }
 
-    console.log(`[worker-service] found ${pendingTasks.length} pending task(s)`);
+    const overdueTasks = openTasks.filter(isOverdue);
+    console.log(`[worker-service] open tasks: ${openTasks.length}, overdue tasks: ${overdueTasks.length}`);
 
-    for (const task of pendingTasks) {
-      console.log(`[worker-service] processing task id=${task.id}, title="${task.title}"`);
-      await markTaskCompleted(task.id);
-      console.log(`[worker-service] completed task id=${task.id}`);
+    for (const task of openTasks) {
+      const dueDate = task.dueDate ? formatDueDate(task.dueDate) : 'no deadline';
+      const overdueLabel = isOverdue(task) ? 'OVERDUE' : 'active';
+      console.log(`[worker-service] ${overdueLabel} task id=${task.id}, title="${task.title}", due=${dueDate}, status=${task.status}`);
     }
 
-    await recordJobRun('process-pending-tasks', 'completed', {
-      processedCount: pendingTasks.length,
-      taskIds: pendingTasks.map((task) => task.id)
+    await recordJobRun('monitor-open-tasks', 'completed', {
+      openTaskCount: openTasks.length,
+      overdueTaskCount: overdueTasks.length,
+      taskIds: openTasks.map((task) => task.id)
     });
   } catch (error) {
-    console.error('[worker-service] failed to process pending tasks:', error);
-    await recordJobRun('process-pending-tasks', 'failed', {
+    console.error('[worker-service] failed to monitor open tasks:', error);
+    await recordJobRun('monitor-open-tasks', 'failed', {
       message: error.message
     }).catch((recordError) => {
       console.error('[worker-service] failed to record job failure:', recordError);
@@ -90,10 +120,10 @@ async function startServer() {
   console.log('[worker-service] database schema is ready');
   console.log(`[worker-service] background worker interval set to ${intervalMs}ms`);
 
-  await processPendingTasks();
+  await monitorOpenTasks();
 
   setInterval(() => {
-    processPendingTasks();
+    monitorOpenTasks();
   }, intervalMs);
 
   app.listen(port, () => {

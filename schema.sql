@@ -19,11 +19,13 @@ CREATE TABLE IF NOT EXISTS tasks (
     title VARCHAR(255) NOT NULL,
     description TEXT,
     status ENUM('pending', 'in_progress', 'completed') NOT NULL DEFAULT 'pending',
+    due_date DATE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_tasks_title_not_empty CHECK (CHAR_LENGTH(TRIM(title)) >= 3)
 );
 
 CREATE INDEX idx_tasks_status ON tasks (status);
+CREATE INDEX idx_tasks_due_date ON tasks (due_date);
 CREATE INDEX idx_tasks_created_at ON tasks (created_at);
 
 INSERT INTO users (name, email, password)
@@ -34,11 +36,11 @@ VALUES
 ON DUPLICATE KEY UPDATE
     name = VALUES(name);
 
-INSERT INTO tasks (title, description, status)
+INSERT INTO tasks (title, description, status, due_date)
 VALUES
-    ('Provision Docker environment', 'Create Dockerfiles and Compose services for the task platform.', 'completed'),
-    ('Configure CI pipeline', 'Validate Node.js services and Docker builds with GitHub Actions.', 'in_progress'),
-    ('Review production secrets', 'Replace example credentials before deployment.', 'pending'),
-    ('Document service endpoints', 'Add usage examples for API, Auth, and Worker services.', 'pending')
+    ('Complete data structures assignment', 'Solve stack and queue questions for college submission.', 'pending', CURDATE()),
+    ('Revise operating system notes', 'Read process scheduling and deadlock notes before class.', 'in_progress', DATE_ADD(CURDATE(), INTERVAL 1 DAY)),
+    ('Submit DevOps project report', 'Prepare README, screenshots, and viva points.', 'completed', DATE_ADD(CURDATE(), INTERVAL 2 DAY)),
+    ('Prepare morning routine checklist', 'Write daily tasks and deadlines for tomorrow.', 'pending', DATE_ADD(CURDATE(), INTERVAL 1 DAY))
 ON DUPLICATE KEY UPDATE
     title = VALUES(title);

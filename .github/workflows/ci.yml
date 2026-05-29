@@ -14,6 +14,7 @@ env:
   API_SERVICE_PORT: "3000"
   AUTH_SERVICE_PORT: "3001"
   WORKER_SERVICE_PORT: "3002"
+  FRONTEND_PORT: "8081"
   ADMINER_PORT: "8080"
   MYSQL_PORT: "3306"
   DB_NAME: task_management
@@ -124,6 +125,11 @@ jobs:
           check_health "auth-service" "http://localhost:${AUTH_SERVICE_PORT}/health"
           check_health "worker-service" "http://localhost:${WORKER_SERVICE_PORT}/health"
 
+      # Verify that the frontend dashboard is being served by Nginx.
+      - name: Verify frontend dashboard
+        run: |
+          curl --fail --silent --show-error "http://localhost:${FRONTEND_PORT}" | grep "Containerized Task Management System"
+
       # Confirm all Compose-managed containers are present and running.
       - name: Verify containers are running
         shell: bash
@@ -136,6 +142,7 @@ jobs:
             "task-api-service"
             "task-auth-service"
             "task-worker-service"
+            "task-frontend"
             "task-mysql"
             "task-adminer"
           )

@@ -8,9 +8,9 @@
 
 ## Project Overview
 
-Containerized Task Management System is a production-style DevOps project that demonstrates how to build, containerize, orchestrate, and validate a small microservice-based Node.js application.
+Containerized Task Management System is a production-style daily task management app. A user can log daily tasks, set deadlines, update progress, and mark tasks as completed.
 
-The system includes a Task API service, an Auth service, a background Worker service, a MySQL database, and Adminer for database administration. It is designed to run locally with Docker Compose and validate automatically through GitHub Actions.
+The system includes a frontend app, Task API service, Auth service, background Worker service, MySQL database, and Adminer for database administration. It is designed to run locally with Docker Compose and validate automatically through GitHub Actions.
 
 ## Architecture
 
@@ -43,7 +43,7 @@ Client / API Consumer
               +----------------+
 ```
 
-The API service manages task CRUD operations. The Auth service manages user registration, password hashing, and JWT login. The Worker service polls MySQL every 10 seconds, logs pending tasks, and marks them as completed.
+The API service manages task CRUD operations and deadlines. The Auth service manages user registration, password hashing, and JWT login. The Worker service polls MySQL every 10 seconds and logs open or overdue tasks for background monitoring.
 
 ## Tech Stack
 
@@ -57,22 +57,26 @@ The API service manages task CRUD operations. The Auth service manages user regi
 | Containers | Docker, Docker Compose |
 | Database UI | Adminer |
 | CI/CD | GitHub Actions |
+| Frontend | Static HTML, CSS, JavaScript, Nginx |
 
 ## Features
 
 - Microservice-style project structure
-- Task CRUD REST APIs
+- Daily task CRUD REST APIs
+- Deadline tracking for each task
+- Manual task completion from the frontend
 - User registration and login
 - JWT token generation
 - bcrypt password hashing
 - MySQL schema creation from services
-- Background worker task processing
+- Background worker monitoring for open and overdue tasks
 - Dockerfiles for every Node.js service
 - Docker Compose orchestration with bridge networking
 - Persistent MySQL volume
 - Adminer database management UI
 - GitHub Actions pipeline for build, test, container startup, and health checks
 - Environment-driven configuration with `.env.example`
+- Frontend dashboard for health checks, auth demo, task creation, and live task listing
 
 ## Folder Structure
 
@@ -117,6 +121,11 @@ containerized-task-management-system/
 |   |-- Dockerfile
 |   |-- package.json
 |   `-- server.js
+|-- frontend/
+|   |-- Dockerfile
+|   |-- app.js
+|   |-- index.html
+|   `-- styles.css
 |-- .dockerignore
 |-- .env.example
 |-- .gitignore
@@ -204,8 +213,19 @@ docker-compose down --volumes
 | API Service | `task-api-service` | `3000` |
 | Auth Service | `task-auth-service` | `3001` |
 | Worker Service | `task-worker-service` | `3002` |
+| Frontend | `task-frontend` | `8081` |
 | MySQL | `task-mysql` | `3306` |
 | Adminer | `task-adminer` | `8080` |
+
+### Frontend Dashboard
+
+Open the visual dashboard:
+
+```text
+http://localhost:8081
+```
+
+Use it during a demo to show service health, register/login, create tasks, and show live task status changes after the Worker service processes pending tasks.
 
 ### Adminer Access
 

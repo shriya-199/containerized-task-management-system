@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Daily Task Manager</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      min-height: 100vh;
+      background: #eef4f8;
+      color: #1f2937;
+      font-family: Arial, Helvetica, sans-serif;
+      padding: 24px;
+    }
+
+    .container {
+      max-width: 920px;
+      margin: 0 auto;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .header h1 {
+      font-size: 34px;
+      margin-bottom: 8px;
+      color: #123047;
+    }
+
+    .header p {
+      color: #64748b;
+      font-size: 15px;
+    }
+
+    .task-form {
+      display: grid;
+      grid-template-columns: 1.5fr 170px 150px auto;
+      gap: 12px;
+      background: #ffffff;
+      padding: 18px;
+      border-radius: 16px;
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+      margin-bottom: 22px;
+    }
+
+    input,
+    select,
+    button {
+      width: 100%;
+      border: 1px solid #d7e0e8;
+      border-radius: 10px;
+      min-height: 44px;
+      padding: 10px 12px;
+      font-size: 15px;
+      font-family: inherit;
+    }
+
+    input:focus,
+    select:focus {
+      outline: 2px solid #b6d9ef;
+      border-color: #5392b5;
+    }
+
+    button {
+      border: none;
+      background: #256f8f;
+      color: #ffffff;
+      cursor: pointer;
+      font-weight: 700;
+      transition: 0.2s ease;
+    }
+
+    button:hover {
+      background: #1c5872;
+      transform: translateY(-1px);
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .summary-card {
+      background: #ffffff;
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 10px 26px rgba(15, 23, 42, 0.07);
+      text-align: center;
+    }
+
+    .summary-card span {
+      display: block;
+      color: #64748b;
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+
+    .summary-card strong {
+      font-size: 28px;
+      color: #123047;
+    }
+
+    .task-list {
+      display: grid;
+      gap: 14px;
+    }
+
+    .task-card {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 14px;
+      align-items: center;
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 18px;
+      box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+      border-left: 6px solid #9cc8dd;
+    }
+
+    .task-card.completed {
+      opacity: 0.72;
+      border-left-color: #75b798;
+    }
+
+    .task-title {
+      font-size: 18px;
+      margin-bottom: 9px;
+      color: #172033;
+    }
+
+    .task-card.completed .task-title {
+      text-decoration: line-through;
+      color: #64748b;
+    }
+
+    .task-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      color: #64748b;
+      font-size: 13px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .priority-low {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .priority-medium {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .priority-high {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .status-pending {
+      background: #e0f2fe;
+      color: #075985;
+    }
+
+    .status-completed {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .complete-btn {
+      background: #2f855a;
+      min-width: 96px;
+    }
+
+    .complete-btn:hover {
+      background: #276749;
+    }
+
+    .delete-btn {
+      background: #c2410c;
+      min-width: 86px;
+    }
+
+    .delete-btn:hover {
+      background: #9a3412;
+    }
+
+    .empty {
+      text-align: center;
+      background: #ffffff;
+      color: #64748b;
+      border-radius: 16px;
+      padding: 32px;
+      box-shadow: 0 10px 28px rgba(15, 23, 42, 0.07);
+    }
+
+    @media (max-width: 760px) {
+      body {
+        padding: 16px;
+      }
+
+      .task-form {
+        grid-template-columns: 1fr;
+      }
+
+      .summary {
+        grid-template-columns: 1fr;
+      }
+
+      .task-card {
+        grid-template-columns: 1fr;
+      }
+
+      .actions {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <section class="header">
+      <h1>Daily Task Manager</h1>
+      <p>Add your daily tasks, set deadlines, choose priority, and mark them completed.</p>
+    </section>
+
+    <section class="task-form">
+      <input id="taskTitle" type="text" placeholder="Enter task title" />
+      <input id="taskDate" type="date" />
+      <select id="taskPriority">
+        <option value="Low">Low</option>
+        <option value="Medium" selected>Medium</option>
+        <option value="High">High</option>
+      </select>
+      <button id="addTaskBtn" type="button">Add Task</button>
+    </section>
+
+    <section class="summary">
+      <div class="summary-card">
+        <span>Total Tasks</span>
+        <strong id="totalCount">0</strong>
+      </div>
+      <div class="summary-card">
+        <span>Pending</span>
+        <strong id="pendingCount">0</strong>
+      </div>
+      <div class="summary-card">
+        <span>Completed</span>
+        <strong id="completedCount">0</strong>
+      </div>
+    </section>
+
+    <section id="taskList" class="task-list"></section>
+  </main>
+
+  <script>
+    const STORAGE_KEY = 'daily-task-manager-tasks';
+
+    const taskTitleInput = document.getElementById('taskTitle');
+    const taskDateInput = document.getElementById('taskDate');
+    const taskPriorityInput = document.getElementById('taskPriority');
+    const addTaskBtn = document.getElementById('addTaskBtn');
+    const taskList = document.getElementById('taskList');
+    const totalCount = document.getElementById('totalCount');
+    const pendingCount = document.getElementById('pendingCount');
+    const completedCount = document.getElementById('completedCount');
+
+    const sampleTasks = [
+      {
+        id: 1,
+        title: 'Complete DBMS assignment',
+        date: getToday(),
+        priority: 'High',
+        completed: false
+      },
+      {
+        id: 2,
+        title: 'Revise operating system notes',
+        date: getTomorrow(),
+        priority: 'Medium',
+        completed: false
+      },
+      {
+        id: 3,
+        title: 'Submit DevOps project report',
+        date: getToday(),
+        priority: 'Low',
+        completed: true
+      }
+    ];
+
+    let tasks = loadTasks();
+
+    function getToday() {
+      return new Date().toISOString().slice(0, 10);
+    }
+
+    function getTomorrow() {
+      const date = new Date();
+      date.setDate(date.getDate() + 1);
+      return date.toISOString().slice(0, 10);
+    }
+
+    function loadTasks() {
+      const savedTasks = localStorage.getItem(STORAGE_KEY);
+      if (savedTasks) {
+        return JSON.parse(savedTasks);
+      }
+
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(sampleTasks));
+      return sampleTasks;
+    }
+
+    function saveTasks() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+    }
+
+    function addTask() {
+      const title = taskTitleInput.value.trim();
+      const date = taskDateInput.value;
+      const priority = taskPriorityInput.value;
+
+      if (!title) {
+        alert('Please enter a task title.');
+        return;
+      }
+
+      if (!date) {
+        alert('Please select a date.');
+        return;
+      }
+
+      const newTask = {
+        id: Date.now(),
+        title,
+        date,
+        priority,
+        completed: false
+      };
+
+      tasks.unshift(newTask);
+      saveTasks();
+      renderTasks();
+
+      taskTitleInput.value = '';
+      taskDateInput.value = getToday();
+      taskPriorityInput.value = 'Medium';
+    }
+
+    function completeTask(id) {
+      tasks = tasks.map((task) => {
+        if (task.id === id) {
+          return { ...task, completed: !task.completed };
+        }
+        return task;
+      });
+
+      saveTasks();
+      renderTasks();
+    }
+
+    function deleteTask(id) {
+      tasks = tasks.filter((task) => task.id !== id);
+      saveTasks();
+      renderTasks();
+    }
+
+    function priorityClass(priority) {
+      return `priority-${priority.toLowerCase()}`;
+    }
+
+    function renderTasks() {
+      totalCount.textContent = tasks.length;
+      pendingCount.textContent = tasks.filter((task) => !task.completed).length;
+      completedCount.textContent = tasks.filter((task) => task.completed).length;
+
+      if (tasks.length === 0) {
+        taskList.innerHTML = '<div class="empty">No tasks yet. Add your first daily task above.</div>';
+        return;
+      }
+
+      taskList.innerHTML = tasks.map((task) => {
+        const statusText = task.completed ? 'Completed' : 'Pending';
+        const statusClass = task.completed ? 'status-completed' : 'status-pending';
+        const completeButtonText = task.completed ? 'Undo' : 'Complete';
+
+        return `
+          <article class="task-card ${task.completed ? 'completed' : ''}">
+            <div>
+              <h2 class="task-title">${task.title}</h2>
+              <div class="task-meta">
+                <span>Date: ${task.date}</span>
+                <span class="badge ${priorityClass(task.priority)}">${task.priority}</span>
+                <span class="badge ${statusClass}">${statusText}</span>
+              </div>
+            </div>
+            <div class="actions">
+              <button class="complete-btn" onclick="completeTask(${task.id})">${completeButtonText}</button>
+              <button class="delete-btn" onclick="deleteTask(${task.id})">Delete</button>
+            </div>
+          </article>
+        `;
+      }).join('');
+    }
+
+    addTaskBtn.addEventListener('click', addTask);
+
+    taskTitleInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        addTask();
+      }
+    });
+
+    taskDateInput.value = getToday();
+    renderTasks();
+  </script>
+</body>
+</html>

@@ -7,12 +7,27 @@ async function ensureWorkerTables() {
       title VARCHAR(255) NOT NULL,
       description TEXT,
       status ENUM('pending', 'in_progress', 'completed') NOT NULL DEFAULT 'pending',
+      due_date DATE,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       INDEX idx_tasks_status (status),
+      INDEX idx_tasks_due_date (due_date),
       INDEX idx_tasks_created_at (created_at)
     )
   `);
+
+  const [columns] = await db.execute(`
+    SELECT COLUMN_NAME
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'tasks'
+      AND COLUMN_NAME = 'due_date'
+  `);
+
+  if (columns.length === 0) {
+    await db.execute('ALTER TABLE tasks ADD COLUMN due_date DATE AFTER status');
+    await db.execute('CREATE INDEX idx_tasks_due_date ON tasks (due_date)');
+  }
 
   await db.execute(`
     CREATE TABLE IF NOT EXISTS job_runs (
@@ -27,24 +42,14 @@ async function ensureWorkerTables() {
   `);
 }
 
-async function getPendingTasks() {
+async function getOpenTasks() {
   const [rows] = await db.execute(`
-    SELECT id, title, description, status, created_at AS createdAt, updated_at AS updatedAt
+    SELECT id, title, description, status, due_date AS dueDate, created_at AS createdAt, updated_at AS updatedAt
     FROM tasks
-    WHERE status = 'pending'
-    ORDER BY created_at ASC
+    WHERE status <> 'completed'
+    ORDER BY due_date IS NULL, due_date ASC, created_at ASC
   `);
   return rows;
-}
-
-async function markTaskCompleted(id) {
-  const [result] = await db.execute(
-    `UPDATE tasks
-     SET status = 'completed'
-     WHERE id = :id AND status = 'pending'`,
-    { id }
-  );
-  return result.affectedRows > 0;
 }
 
 async function recordJobRun(jobName, status, payload) {
@@ -71,8 +76,7 @@ async function findLatestJobRun() {
 
 module.exports = {
   ensureWorkerTables,
-  getPendingTasks,
-  markTaskCompleted,
+  getOpenTasks,
   recordJobRun,
   findLatestJobRun
 };

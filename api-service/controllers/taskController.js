@@ -15,6 +15,12 @@ function validateTaskPayload(payload, partial = false) {
     errors.push('status must be one of pending, in_progress, completed');
   }
 
+  if (payload.dueDate !== undefined && payload.dueDate !== null && payload.dueDate !== '') {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(payload.dueDate)) {
+      errors.push('dueDate must use YYYY-MM-DD format');
+    }
+  }
+
   return errors;
 }
 
@@ -28,7 +34,8 @@ async function createTask(req, res, next) {
     const task = {
       title: req.body.title.trim(),
       description: req.body.description || '',
-      status: req.body.status || 'pending'
+      status: req.body.status || 'pending',
+      dueDate: req.body.dueDate || null
     };
 
     const createdTask = await taskModel.create(task);
@@ -75,7 +82,8 @@ async function updateTask(req, res, next) {
     const updates = {
       title: req.body.title ? req.body.title.trim() : existingTask.title,
       description: req.body.description !== undefined ? req.body.description : existingTask.description,
-      status: req.body.status || existingTask.status
+      status: req.body.status || existingTask.status,
+      dueDate: req.body.dueDate !== undefined ? req.body.dueDate || null : existingTask.dueDate
     };
 
     const updatedTask = await taskModel.update(req.params.id, updates);
