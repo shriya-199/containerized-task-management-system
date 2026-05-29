@@ -125,10 +125,10 @@ jobs:
           check_health "auth-service" "http://localhost:${AUTH_SERVICE_PORT}/health"
           check_health "worker-service" "http://localhost:${WORKER_SERVICE_PORT}/health"
 
-      # Verify that the frontend dashboard is being served by Nginx.
-      - name: Verify frontend dashboard
+      # Verify that the Daily Task Manager frontend is being served by Nginx.
+      - name: Verify frontend app
         run: |
-          curl --fail --silent --show-error "http://localhost:${FRONTEND_PORT}" | grep "Containerized Task Management System"
+          curl --fail --silent --show-error "http://localhost:${FRONTEND_PORT}" | grep "Daily Task Manager"
 
       # Confirm all Compose-managed containers are present and running.
       - name: Verify containers are running
