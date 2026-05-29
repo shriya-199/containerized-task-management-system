@@ -1,0 +1,114 @@
+services:
+  api-service:
+    build:
+      context: ./api-service
+      dockerfile: Dockerfile
+    container_name: task-api-service
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      API_SERVICE_PORT: ${API_SERVICE_PORT:-3000}
+      DB_HOST: mysql
+      DB_PORT: ${DB_PORT:-3306}
+      DB_NAME: ${DB_NAME:-task_management}
+      DB_USER: ${DB_USER:-task_user}
+      DB_PASSWORD: ${DB_PASSWORD:-task_password}
+      DB_CONNECTION_LIMIT: ${DB_CONNECTION_LIMIT:-10}
+    ports:
+      - "${API_SERVICE_PORT:-3000}:3000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - task-management-network
+
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+    container_name: task-auth-service
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      AUTH_SERVICE_PORT: ${AUTH_SERVICE_PORT:-3001}
+      DB_HOST: mysql
+      DB_PORT: ${DB_PORT:-3306}
+      DB_NAME: ${DB_NAME:-task_management}
+      DB_USER: ${DB_USER:-task_user}
+      DB_PASSWORD: ${DB_PASSWORD:-task_password}
+      DB_CONNECTION_LIMIT: ${DB_CONNECTION_LIMIT:-10}
+      JWT_SECRET: ${JWT_SECRET:-replace-with-a-long-random-production-secret}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1h}
+    ports:
+      - "${AUTH_SERVICE_PORT:-3001}:3001"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - task-management-network
+
+  worker-service:
+    build:
+      context: ./worker-service
+      dockerfile: Dockerfile
+    container_name: task-worker-service
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      WORKER_SERVICE_PORT: ${WORKER_SERVICE_PORT:-3002}
+      WORKER_INTERVAL_MS: ${WORKER_INTERVAL_MS:-10000}
+      DB_HOST: mysql
+      DB_PORT: ${DB_PORT:-3306}
+      DB_NAME: ${DB_NAME:-task_management}
+      DB_USER: ${DB_USER:-task_user}
+      DB_PASSWORD: ${DB_PASSWORD:-task_password}
+      DB_CONNECTION_LIMIT: ${DB_CONNECTION_LIMIT:-10}
+    ports:
+      - "${WORKER_SERVICE_PORT:-3002}:3002"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - task-management-network
+
+  mysql:
+    image: mysql:8.0.36
+    container_name: task-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_password}
+      MYSQL_DATABASE: ${DB_NAME:-task_management}
+      MYSQL_USER: ${DB_USER:-task_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-task_password}
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-root_password}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - task-management-network
+
+  adminer:
+    image: adminer:latest
+    container_name: task-adminer
+    restart: unless-stopped
+    ports:
+      - "${ADMINER_PORT:-8080}:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - task-management-network
+
+volumes:
+  mysql-data:
+    driver: local
+
+networks:
+  task-management-network:
+    driver: bridge

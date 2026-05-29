@@ -1,0 +1,189 @@
+name: Containerized Task Management CI/CD
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "18"
+  COMPOSE_PROJECT_NAME: containerized-task-management-ci
+  API_SERVICE_PORT: "3000"
+  AUTH_SERVICE_PORT: "3001"
+  WORKER_SERVICE_PORT: "3002"
+  ADMINER_PORT: "8080"
+  MYSQL_PORT: "3306"
+  DB_NAME: task_management
+  DB_USER: task_user
+  DB_PASSWORD: task_password
+  MYSQL_ROOT_PASSWORD: root_password
+  JWT_SECRET: ci-only-jwt-secret-change-in-production
+  JWT_EXPIRES_IN: 1h
+  WORKER_INTERVAL_MS: "10000"
+
+jobs:
+  ci-cd:
+    name: Build, Test, and Verify Containers
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      # Fetch the repository so service source, Dockerfiles, and Compose files are available.
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Install Node.js 18 for dependency installation and service-level test execution.
+      - name: Set up Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      # Install dependencies for each Node.js service. npm install is used because lockfiles
+      # may not exist yet in early project scaffolds.
+      - name: Install API service dependencies
+        working-directory: api-service
+        run: npm install
+
+      - name: Install Auth service dependencies
+        working-directory: auth-service
+        run: npm install
+
+      - name: Install Worker service dependencies
+        working-directory: worker-service
+        run: npm install
+
+      # Run the service test scripts when present. The fallback lint command keeps the
+      # pipeline useful for services that currently only define syntax validation.
+      - name: Run API service tests
+        working-directory: api-service
+        run: |
+          npm run test --if-present
+          npm run lint
+
+      - name: Run Auth service tests
+        working-directory: auth-service
+        run: |
+          npm run test --if-present
+          npm run lint
+
+      - name: Run Worker service tests
+        working-directory: worker-service
+        run: |
+          npm run test --if-present
+          npm run lint
+
+      # Print Docker versions to make CI logs reproducible and easier to debug.
+      - name: Show Docker environment
+        run: |
+          docker --version
+          docker compose version
+
+      # Validate the Compose file before building so configuration errors fail fast.
+      - name: Validate Docker Compose configuration
+        run: docker compose config
+
+      # Build all application images defined in docker-compose.yml.
+      - name: Build Docker images
+        run: docker compose build --pull
+
+      # Start the complete stack in detached mode, including MySQL and Adminer.
+      - name: Start containers with Docker Compose
+        run: docker compose up -d
+
+      # Wait for application health endpoints to become available after MySQL is healthy
+      # and the services finish bootstrapping their schemas.
+      - name: Verify service health endpoints
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          check_health() {
+            local name="$1"
+            local url="$2"
+
+            echo "Checking ${name} at ${url}"
+            for attempt in {1..30}; do
+              if curl --fail --silent --show-error "${url}" > /tmp/"${name}".json; then
+                echo "${name} is healthy"
+                cat /tmp/"${name}".json
+                return 0
+              fi
+
+              echo "${name} is not ready yet. Attempt ${attempt}/30"
+              sleep 5
+            done
+
+            echo "::error::${name} health check failed"
+            return 1
+          }
+
+          check_health "api-service" "http://localhost:${API_SERVICE_PORT}/health"
+          check_health "auth-service" "http://localhost:${AUTH_SERVICE_PORT}/health"
+          check_health "worker-service" "http://localhost:${WORKER_SERVICE_PORT}/health"
+
+      # Confirm all Compose-managed containers are present and running.
+      - name: Verify containers are running
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker compose ps
+
+          expected_containers=(
+            "task-api-service"
+            "task-auth-service"
+            "task-worker-service"
+            "task-mysql"
+            "task-adminer"
+          )
+
+          for container in "${expected_containers[@]}"; do
+            status="$(docker inspect -f '{{.State.Status}}' "${container}")"
+            echo "${container} status: ${status}"
+
+            if [ "${status}" != "running" ]; then
+              echo "::error::${container} is not running"
+              exit 1
+            fi
+          done
+
+      # Emit a clear success message after build, startup, health checks, and status checks pass.
+      - name: CI/CD success log
+        if: success()
+        run: echo "CI/CD pipeline completed successfully. Images built and containers verified."
+
+      # On failure, collect container status and logs for fast diagnosis.
+      - name: CI/CD failure diagnostics
+        if: failure()
+        run: |
+          echo "::group::Docker Compose status"
+          docker compose ps || true
+          echo "::endgroup::"
+
+          echo "::group::API service logs"
+          docker logs task-api-service || true
+          echo "::endgroup::"
+
+          echo "::group::Auth service logs"
+          docker logs task-auth-service || true
+          echo "::endgroup::"
+
+          echo "::group::Worker service logs"
+          docker logs task-worker-service || true
+          echo "::endgroup::"
+
+          echo "::group::MySQL logs"
+          docker logs task-mysql || true
+          echo "::endgroup::"
+
+          echo "::group::Adminer logs"
+          docker logs task-adminer || true
+          echo "::endgroup::"
+
+      # Always stop containers so CI runners are left clean.
+      - name: Tear down Docker Compose stack
+        if: always()
+        run: docker compose down --volumes --remove-orphans
