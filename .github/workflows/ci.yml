@@ -1,7 +1,10 @@
-name: Containerized Task Management CI/CD
+name: Daily Task Manager CI
 
 on:
   push:
+    branches:
+      - main
+  pull_request:
     branches:
       - main
 
@@ -9,188 +12,63 @@ permissions:
   contents: read
 
 env:
-  NODE_VERSION: "18"
-  COMPOSE_PROJECT_NAME: containerized-task-management-ci
-  API_SERVICE_PORT: "3000"
-  AUTH_SERVICE_PORT: "3001"
-  WORKER_SERVICE_PORT: "3002"
   FRONTEND_PORT: "8081"
-  ADMINER_PORT: "8080"
-  MYSQL_PORT: "3306"
-  DB_NAME: task_management
-  DB_USER: task_user
-  DB_PASSWORD: task_password
-  MYSQL_ROOT_PASSWORD: root_password
-  JWT_SECRET: ci-only-jwt-secret-change-in-production
-  JWT_EXPIRES_IN: 1h
-  WORKER_INTERVAL_MS: "10000"
+  BACKEND_PORT: "3000"
 
 jobs:
-  ci-cd:
-    name: Build, Test, and Verify Containers
+  build-and-verify:
+    name: Build and Verify Frontend
     runs-on: ubuntu-latest
-    timeout-minutes: 20
 
     steps:
-      # Fetch the repository so service source, Dockerfiles, and Compose files are available.
+      # Checkout project files from the repository.
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Install Node.js 18 for dependency installation and service-level test execution.
-      - name: Set up Node.js 18
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      # Install dependencies for each Node.js service. npm install is used because lockfiles
-      # may not exist yet in early project scaffolds.
-      - name: Install API service dependencies
-        working-directory: api-service
-        run: npm install
-
-      - name: Install Auth service dependencies
-        working-directory: auth-service
-        run: npm install
-
-      - name: Install Worker service dependencies
-        working-directory: worker-service
-        run: npm install
-
-      # Run the service test scripts when present. The fallback lint command keeps the
-      # pipeline useful for services that currently only define syntax validation.
-      - name: Run API service tests
-        working-directory: api-service
-        run: |
-          npm run test --if-present
-          npm run lint
-
-      - name: Run Auth service tests
-        working-directory: auth-service
-        run: |
-          npm run test --if-present
-          npm run lint
-
-      - name: Run Worker service tests
-        working-directory: worker-service
-        run: |
-          npm run test --if-present
-          npm run lint
-
-      # Print Docker versions to make CI logs reproducible and easier to debug.
-      - name: Show Docker environment
+      # Show Docker versions for clear CI logs.
+      - name: Show Docker version
         run: |
           docker --version
           docker compose version
 
-      # Validate the Compose file before building so configuration errors fail fast.
-      - name: Validate Docker Compose configuration
+      # Validate docker-compose.yml before building.
+      - name: Validate Docker Compose file
         run: docker compose config
 
-      # Build all application images defined in docker-compose.yml.
+      # Build frontend and backend Docker images.
       - name: Build Docker images
-        run: docker compose build --pull
+        run: docker compose build
 
-      # Start the complete stack in detached mode, including MySQL and Adminer.
-      - name: Start containers with Docker Compose
+      # Start frontend and backend containers.
+      - name: Start containers
         run: docker compose up -d
 
-      # Wait for application health endpoints to become available after MySQL is healthy
-      # and the services finish bootstrapping their schemas.
-      - name: Verify service health endpoints
-        shell: bash
+      # Verify backend health endpoint.
+      - name: Verify backend health
         run: |
-          set -euo pipefail
+          curl --fail --silent --show-error "http://localhost:${BACKEND_PORT}/health" | grep "healthy"
 
-          check_health() {
-            local name="$1"
-            local url="$2"
-
-            echo "Checking ${name} at ${url}"
-            for attempt in {1..30}; do
-              if curl --fail --silent --show-error "${url}" > /tmp/"${name}".json; then
-                echo "${name} is healthy"
-                cat /tmp/"${name}".json
-                return 0
-              fi
-
-              echo "${name} is not ready yet. Attempt ${attempt}/30"
-              sleep 5
-            done
-
-            echo "::error::${name} health check failed"
-            return 1
-          }
-
-          check_health "api-service" "http://localhost:${API_SERVICE_PORT}/health"
-          check_health "auth-service" "http://localhost:${AUTH_SERVICE_PORT}/health"
-          check_health "worker-service" "http://localhost:${WORKER_SERVICE_PORT}/health"
-
-      # Verify that the Daily Task Manager frontend is being served by Nginx.
-      - name: Verify frontend app
+      # Verify that the app is served successfully.
+      - name: Verify Daily Task Manager page
         run: |
           curl --fail --silent --show-error "http://localhost:${FRONTEND_PORT}" | grep "Daily Task Manager"
 
-      # Confirm all Compose-managed containers are present and running.
-      - name: Verify containers are running
-        shell: bash
-        run: |
-          set -euo pipefail
+      # Show running containers in CI logs.
+      - name: Verify container status
+        run: docker compose ps
 
-          docker compose ps
+      # Print success message.
+      - name: Success log
+        run: echo "Daily Task Manager built and verified successfully."
 
-          expected_containers=(
-            "task-api-service"
-            "task-auth-service"
-            "task-worker-service"
-            "task-frontend"
-            "task-mysql"
-            "task-adminer"
-          )
-
-          for container in "${expected_containers[@]}"; do
-            status="$(docker inspect -f '{{.State.Status}}' "${container}")"
-            echo "${container} status: ${status}"
-
-            if [ "${status}" != "running" ]; then
-              echo "::error::${container} is not running"
-              exit 1
-            fi
-          done
-
-      # Emit a clear success message after build, startup, health checks, and status checks pass.
-      - name: CI/CD success log
-        if: success()
-        run: echo "CI/CD pipeline completed successfully. Images built and containers verified."
-
-      # On failure, collect container status and logs for fast diagnosis.
-      - name: CI/CD failure diagnostics
+      # Print logs if any step fails.
+      - name: Failure diagnostics
         if: failure()
         run: |
-          echo "::group::Docker Compose status"
           docker compose ps || true
-          echo "::endgroup::"
+          docker compose logs || true
 
-          echo "::group::API service logs"
-          docker logs task-api-service || true
-          echo "::endgroup::"
-
-          echo "::group::Auth service logs"
-          docker logs task-auth-service || true
-          echo "::endgroup::"
-
-          echo "::group::Worker service logs"
-          docker logs task-worker-service || true
-          echo "::endgroup::"
-
-          echo "::group::MySQL logs"
-          docker logs task-mysql || true
-          echo "::endgroup::"
-
-          echo "::group::Adminer logs"
-          docker logs task-adminer || true
-          echo "::endgroup::"
-
-      # Always stop containers so CI runners are left clean.
-      - name: Tear down Docker Compose stack
+      # Clean up containers after workflow.
+      - name: Tear down containers
         if: always()
-        run: docker compose down --volumes --remove-orphans
+        run: docker compose down --remove-orphans

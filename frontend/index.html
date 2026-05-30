@@ -245,7 +245,7 @@
   <main class="container">
     <section class="header">
       <h1>Daily Task Manager</h1>
-      <p>Add your daily tasks, set deadlines, choose priority, and mark them completed.</p>
+      <p>Add your daily tasks, set deadlines, choose priority, and save them through a basic backend.</p>
     </section>
 
     <section class="task-form">
@@ -278,7 +278,7 @@
   </main>
 
   <script>
-    const STORAGE_KEY = 'daily-task-manager-tasks';
+    const API_BASE_URL = 'http://localhost:3000';
 
     const taskTitleInput = document.getElementById('taskTitle');
     const taskDateInput = document.getElementById('taskDate');
@@ -289,57 +289,36 @@
     const pendingCount = document.getElementById('pendingCount');
     const completedCount = document.getElementById('completedCount');
 
-    const sampleTasks = [
-      {
-        id: 1,
-        title: 'Complete DBMS assignment',
-        date: getToday(),
-        priority: 'High',
-        completed: false
-      },
-      {
-        id: 2,
-        title: 'Revise operating system notes',
-        date: getTomorrow(),
-        priority: 'Medium',
-        completed: false
-      },
-      {
-        id: 3,
-        title: 'Submit DevOps project report',
-        date: getToday(),
-        priority: 'Low',
-        completed: true
-      }
-    ];
-
-    let tasks = loadTasks();
+    let tasks = [];
 
     function getToday() {
       return new Date().toISOString().slice(0, 10);
     }
 
-    function getTomorrow() {
-      const date = new Date();
-      date.setDate(date.getDate() + 1);
-      return date.toISOString().slice(0, 10);
-    }
+    async function requestJson(url, options = {}) {
+      const response = await fetch(url, options);
+      const text = await response.text();
+      const data = text ? JSON.parse(text) : null;
 
-    function loadTasks() {
-      const savedTasks = localStorage.getItem(STORAGE_KEY);
-      if (savedTasks) {
-        return JSON.parse(savedTasks);
+      if (!response.ok) {
+        const message = data && data.errors ? data.errors.join(' ') : data && data.message ? data.message : 'Request failed.';
+        throw new Error(message);
       }
 
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(sampleTasks));
-      return sampleTasks;
+      return data;
     }
 
-    function saveTasks() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+    async function loadTasks() {
+      try {
+        const response = await requestJson(`${API_BASE_URL}/tasks`);
+        tasks = response.data;
+        renderTasks();
+      } catch (error) {
+        taskList.innerHTML = `<div class="empty">Backend not reachable: ${error.message}</div>`;
+      }
     }
 
-    function addTask() {
+    async function addTask() {
       const title = taskTitleInput.value.trim();
       const date = taskDateInput.value;
       const priority = taskPriorityInput.value;
@@ -354,39 +333,34 @@
         return;
       }
 
-      const newTask = {
-        id: Date.now(),
-        title,
-        date,
-        priority,
-        completed: false
-      };
+      try {
+        await requestJson(`${API_BASE_URL}/tasks`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, date, priority })
+        });
 
-      tasks.unshift(newTask);
-      saveTasks();
-      renderTasks();
-
-      taskTitleInput.value = '';
-      taskDateInput.value = getToday();
-      taskPriorityInput.value = 'Medium';
+        taskTitleInput.value = '';
+        taskDateInput.value = getToday();
+        taskPriorityInput.value = 'Medium';
+        await loadTasks();
+      } catch (error) {
+        alert(error.message);
+      }
     }
 
-    function completeTask(id) {
-      tasks = tasks.map((task) => {
-        if (task.id === id) {
-          return { ...task, completed: !task.completed };
-        }
-        return task;
+    async function completeTask(id) {
+      await requestJson(`${API_BASE_URL}/tasks/${id}/toggle`, {
+        method: 'PATCH'
       });
-
-      saveTasks();
-      renderTasks();
+      await loadTasks();
     }
 
-    function deleteTask(id) {
-      tasks = tasks.filter((task) => task.id !== id);
-      saveTasks();
-      renderTasks();
+    async function deleteTask(id) {
+      await fetch(`${API_BASE_URL}/tasks/${id}`, {
+        method: 'DELETE'
+      });
+      await loadTasks();
     }
 
     function priorityClass(priority) {
@@ -436,7 +410,7 @@
     });
 
     taskDateInput.value = getToday();
-    renderTasks();
+    loadTasks();
   </script>
 </body>
 </html>
