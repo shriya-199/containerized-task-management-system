@@ -17,7 +17,7 @@ env:
 
 jobs:
   build-and-verify:
-    name: Build and Verify Frontend
+    name: Build and Verify App
     runs-on: ubuntu-latest
 
     steps:
@@ -41,17 +41,49 @@ jobs:
 
       # Start frontend and backend containers.
       - name: Start containers
-        run: docker compose up -d
+        run: |
+          docker compose up -d
+          docker compose ps
 
-      # Verify backend health endpoint.
+      # Verify backend health endpoint with retries because the container may need a few seconds to become ready.
       - name: Verify backend health
+        shell: bash
         run: |
-          curl --fail --silent --show-error "http://localhost:${BACKEND_PORT}/health" | grep "healthy"
+          for attempt in {1..30}; do
+            echo "Checking backend health, attempt ${attempt}/30"
 
-      # Verify that the app is served successfully.
+            if curl --fail --silent --show-error "http://localhost:${BACKEND_PORT}/health" | grep "healthy"; then
+              echo "Backend is healthy"
+              exit 0
+            fi
+
+            docker compose ps
+            sleep 2
+          done
+
+          echo "Backend did not become healthy in time"
+          docker compose logs backend
+          exit 1
+
+      # Verify that the frontend app is served successfully.
       - name: Verify Daily Task Manager page
+        shell: bash
         run: |
-          curl --fail --silent --show-error "http://localhost:${FRONTEND_PORT}" | grep "Daily Task Manager"
+          for attempt in {1..30}; do
+            echo "Checking frontend page, attempt ${attempt}/30"
+
+            if curl --fail --silent --show-error "http://localhost:${FRONTEND_PORT}" | grep "Daily Task Manager"; then
+              echo "Frontend is serving Daily Task Manager"
+              exit 0
+            fi
+
+            docker compose ps
+            sleep 2
+          done
+
+          echo "Frontend did not become ready in time"
+          docker compose logs frontend
+          exit 1
 
       # Show running containers in CI logs.
       - name: Verify container status
