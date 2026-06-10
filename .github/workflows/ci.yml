@@ -66,14 +66,14 @@ jobs:
           exit 1
 
       # Verify that the frontend app is served successfully.
-      - name: Verify Daily Task Manager page
+      - name: Verify TaskFlow AI page
         shell: bash
         run: |
           for attempt in {1..30}; do
             echo "Checking frontend page, attempt ${attempt}/30"
 
-            if curl --fail --silent --show-error "http://localhost:${FRONTEND_PORT}" | grep "Daily Task Manager"; then
-              echo "Frontend is serving Daily Task Manager"
+            if curl --fail --silent --show-error "http://localhost:${FRONTEND_PORT}" | grep "TaskFlow AI"; then
+              echo "Frontend is serving TaskFlow AI"
               exit 0
             fi
 
@@ -91,7 +91,7 @@ jobs:
 
       # Print success message.
       - name: Success log
-        run: echo "Daily Task Manager built and verified successfully."
+        run: echo "TaskFlow AI built and verified successfully."
 
       # Print logs if any step fails.
       - name: Failure diagnostics

@@ -7,6 +7,8 @@ services:
     restart: unless-stopped
     ports:
       - "${BACKEND_PORT:-3000}:3000"
+    volumes:
+      - task-data:/usr/src/app/data
 
   frontend:
     build:
@@ -18,3 +20,7 @@ services:
       - "${FRONTEND_PORT:-8081}:80"
     depends_on:
       - backend
+
+volumes:
+  task-data:
+    driver: local

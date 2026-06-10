@@ -1,0 +1,31 @@
+{
+  "name": "taskflow-ai",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "TaskFlow AI premium React todo management application.",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "lint": "node --check vite.config.js"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "4.3.4",
+    "framer-motion": "11.11.17",
+    "lucide-react": "0.468.0",
+    "recharts": "2.13.3",
+    "vite": "5.4.11",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "react-router-dom": "6.28.0"
+  },
+  "devDependencies": {
+    "autoprefixer": "10.4.20",
+    "postcss": "8.4.49",
+    "tailwindcss": "3.4.15"
+  },
+  "engines": {
+    "node": "18.x"
+  }
+}

@@ -7,3 +7,5 @@ dist/
 build/
 *.log
 mysql-data/
+backend/data/*.json
+outputs/
